@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multilingual AI Personal Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4CAF50 0%, #2196F3 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 40px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .language-selector {
+            padding: 12px 20px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            background: white;
+            cursor: pointer;
+        }
+
+        .record-button {
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 200px;
+        }
+
+        .record-button.start {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .record-button.stop {
+            background: #f44336;
+            color: white;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(244, 67, 54, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0); }
+        }
+
+        .transcript-area {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 15px;
+            padding: 20px;
+            min-height: 200px;
+            margin-bottom: 30px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            overflow-y: auto;
+        }
+
+        .transcript-area.empty {
+            color: #6c757d;
+            font-style: italic;
+        }
+
+        .process-section {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .meeting-title-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+
+        .process-button {
+            background: #2196F3;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .process-button:hover {
+            background: #1976D2;
+        }
+
+        .process-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .results-section {
+            margin-top: 30px;
+        }
+
+        .result-card {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .result-card h3 {
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f8f9fa;
+        }
+
+        .key-points {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .key-points {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+
+        .tasks-list {
+            list-style: none;
+        }
+
+        .tasks-list li {
+            background: #f8f9fa;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #4CAF50;
+        }
+
+        .task-priority-high {
+            border-left-color: #f44336;
+        }
+
+        .task-priority-medium {
+            border-left-color: #ff9800;
+        }
+
+        .status {
+            text-align: center;
+            padding: 10px;
+            margin: 20px 0;
+            border-radius: 10px;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.processing {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #b8daff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Multilingual AI Personal Assistant</h1>
+            <p>Record meetings in English, हिंदी, ગુજરાતી, मराठी - Get instant summaries and action items!</p>
+        </div>
+
+        <div class="main-content">
+            <!-- Controls Section -->
+            <div class="controls">
+                <select id="languageSelect" class="language-selector">
+                    <option value="english">🇬🇧 English</option>
+                    <option value="hindi">🇮🇳 हिंदी</option>
+                    <option value="gujarati">🇮🇳 ગુજરાતી</option>
+                    <option value="marathi">🇮🇳 मराठी</option>
+                </select>
+
+                <button id="recordButton" class="record-button start">
+                    🎤 Start Recording
+                </button>
+
+                <div id="recordingStatus" style="display: none;">
+                    ⏱️ <span id="recordingTime">00:00</span>
+                </div>
+            </div>
+
+            <!-- Transcript Area -->
+            <div id="transcriptArea" class="transcript-area empty">
+                Click "Start Recording" to begin capturing your meeting audio.
+                
+                Supported languages: English, हिंदी, ગુજરાતી, मराठी
+            </div>
+
+            <!-- Processing Section -->
+            <div class="process-section">
+                <input type="text" id="meetingTitle" class="meeting-title-input" 
+                       placeholder="Enter meeting title (e.g., Q4 Strategy Review)">
+                
+                <button id="processButton" class="process-button" disabled>
+                    🧠 Process Meeting with AI
+                </button>
+            </div>
+
+            <!-- Status Messages -->
+            <div id="statusMessage"></div>
+
+            <!-- Results Section -->
+            <div id="resultsSection" class="results-section" style="display: none;">
+                <!-- Results will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class MultilingualPA {
+            constructor() {
+                this.recognition = null;
+                this.isRecording = false;
+                this.transcript = '';
+                this.selectedLanguage = 'english';
+                this.recordingStartTime = null;
+                this.recordingInterval = null;
+                
+                this.languages = {
+                    english: 'en-US',
+                    hindi: 'hi-IN',
+                    gujarati: 'gu-IN',
+                    marathi: 'mr-IN'
+                };
+
+                this.initializeElements();
+                this.initializeSpeechRecognition();
+                this.setupEventListeners();
+            }
+
+            initializeElements() {
+                this.languageSelect = document.getElementById('languageSelect');
+                this.recordButton = document.getElementById('recordButton');
+                this.transcriptArea = document.getElementById('transcriptArea');
+                this.processButton = document.getElementById('processButton');
+                this.meetingTitle = document.getElementById('meetingTitle');
+                this.statusMessage = document.getElementById('statusMessage');
+                this.resultsSection = document.getElementById('resultsSection');
+                this.recordingStatus = document.getElementById('recordingStatus');
+                this.recordingTime = document.getElementById('recordingTime');
+            }
+
+            initializeSpeechRecognition() {
+                if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                    this.recognition = new SpeechRecognition();
+                    
+                    this.recognition.continuous = true;
+                    this.recognition.interimResults = true;
+                    this.recognition.lang = this.languages[this.selectedLanguage];
+
+                    this.recognition.onresult = (event) => this.handleSpeechResult(event);
+                    this.recognition.onerror = (event) => this.handleSpeechError(event);
+                    this.recognition.onend = () => this.handleSpeechEnd();
+                    
+                    console.log('Speech recognition initialized');
+                } else {
+                    this.showStatus('Speech recognition not supported. Please use Chrome or Edge browser.', 'error');
+                }
+            }
+
+            setupEventListeners() {
+                this.languageSelect.addEventListener('change', (e) => {
+                    this.selectedLanguage = e.target.value;
+                    if (this.recognition) {
+                        this.recognition.lang = this.languages[this.selectedLanguage];
+                    }
+                    console.log('Language changed to:', this.selectedLanguage);
+                });
+
+                this.recordButton.addEventListener('click', () => {
+                    if (this.isRecording) {
+                        this.stopRecording();
+                    } else {
+                        this.startRecording();
+                    }
+                });
+
+                this.processButton.addEventListener('click', () => {
+                    this.processMeeting();
+                });
+            }
+
+            startRecording() {
+                if (!this.recognition) {
+                    this.showStatus('Speech recognition not available', 'error');
+                    return;
+                }
+
+                try {
+                    this.transcript = '';
+                    this.transcriptArea.textContent = '';
+                    this.transcriptArea.classList.remove('empty');
+                    
+                    this.recognition.start();
+                    this.isRecording = true;
+                    this.recordingStartTime = Date.now();
+                    
+                    this.recordButton.textContent = '⏹️ Stop Recording';
+                    this.recordButton.classList.remove('start');
+                    this.recordButton.classList.add('stop');
+                    
+                    this.recordingStatus.style.display = 'block';
+                    this.startRecordingTimer();
+                    
+                    this.showStatus('Recording started. Speak now...', 'processing');
+                    
+                } catch (error) {
+                    console.error('Recording start error:', error);
+                    this.showStatus('Failed to start recording', 'error');
+                }
+            }
+
+            stopRecording() {
+                if (this.recognition && this.isRecording) {
+                    this.recognition.stop();
+                }
+                
+                this.isRecording = false;
+                this.recordButton.textContent = '🎤 Start Recording';
+                this.recordButton.classList.remove('stop');
+                this.recordButton.classList.add('start');
+                
+                this.recordingStatus.style.display = 'none';
+                this.stopRecordingTimer();
+                
+                this.processButton.disabled = this.transcript.length < 50;
+                
+                this.showStatus('Recording stopped. Click "Process Meeting" to analyze.', 'success');
+            }
+
+            startRecordingTimer() {
+                this.recordingInterval = setInterval(() => {
+                    if (this.recordingStartTime) {
+                        const elapsed = Math.floor((Date.now() - this.recordingStartTime) / 1000);
+                        const minutes = Math.floor(elapsed / 60);
+                        const seconds = elapsed % 60;
+                        this.recordingTime.textContent = 
+                            `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                    }
+                }, 1000);
+            }
+
+            stopRecordingTimer() {
+                if (this.recordingInterval) {
+                    clearInterval(this.recordingInterval);
+                    this.recordingInterval = null;
+                }
+            }
+
+            handleSpeechResult(event) {
+                let interimTranscript = '';
+                let finalTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript + ' ';
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+
+                if (finalTranscript) {
+                    const timestamp = new Date().toLocaleTimeString();
+                    this.transcript += `[${timestamp}] ${finalTranscript}\n`;
+                }
+
+                this.transcriptArea.textContent = this.transcript + interimTranscript;
+                this.transcriptArea.scrollTop = this.transcriptArea.scrollHeight;
+            }
+
+            handleSpeechError(event) {
+                console.error('Speech recognition error:', event.error);
+                
+                if (event.error === 'no-speech') {
+                    this.showStatus('No speech detected. Please speak clearly.', 'error');
+                } else if (event.error === 'not-allowed') {
+                    this.showStatus('Microphone access denied. Please allow microphone access.', 'error');
+                } else {
+                    this.showStatus(`Speech recognition error: ${event.error}`, 'error');
+                }
+            }
+
+            handleSpeechEnd() {
+                if (this.isRecording) {
+                    // Automatically restart recognition if still recording
+                    setTimeout(() => {
+                        if (this.isRecording && this.recognition) {
+                            try {
+                                this.recognition.start();
+                            } catch (error) {
+                                console.log('Recognition restart failed:', error);
+                            }
+                        }
+                    }, 100);
+                }
+            }
+
+            async processMeeting() {
+                if (this.transcript.length < 50) {
+                    this.showStatus('Transcript too short. Please record more content.', 'error');
+                    return;
+                }
+
+                this.processButton.disabled = true;
+                this.processButton.textContent = '🔄 Processing...';
+                this.showStatus('AI is processing your meeting transcript...', 'processing');
+
+                try {
+                    const response = await fetch('/api/process-meeting', {
