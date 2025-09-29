@@ -1,0 +1,20 @@
+{
+  "name": "multilingual-pa",
+  "version": "1.0.0",
+  "description": "Free Multilingual AI Personal Assistant",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "@google/generative-ai": "^0.2.1",
+    "@supabase/supabase-js": "^2.38.5",
+    "dotenv": "^16.3.1"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}
