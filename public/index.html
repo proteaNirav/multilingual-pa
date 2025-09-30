@@ -560,10 +560,15 @@
                 this.recordingTime = document.getElementById('recordingTime');
             }
 
-            initializeSpeechRecognition() {
-                if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-                    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                initializeSpeechRecognition() {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (SpeechRecognition) {
                     this.recognition = new SpeechRecognition();
+                    this.recognition.continuous = true;
+                    this.recognition.interimResults = true;
+                    // Add custom vocabulary for better accuracy
+                    this.recognition.maxAlternatives = 3;
+                    // Note: Full custom vocabulary requires paid service
                     
                     this.recognition.continuous = true;
                     this.recognition.interimResults = true;
