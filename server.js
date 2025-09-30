@@ -106,7 +106,7 @@ IMPORTANT:
 `;
 
     // Call Gemini AI
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
