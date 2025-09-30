@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
 app.use(express.static('public'));
 
 // Initialize Gemini AI
@@ -50,6 +50,7 @@ app.get('/health', (req, res) => {
 app.post('/api/process-meeting', async (req, res) => {
   try {
     const { transcript, language, meetingTitle } = req.body;
+    const startTime = Date.now(); // Track processing time
 
     if (!transcript || !language) {
       return res.status(400).json({ 
@@ -62,54 +63,50 @@ app.post('/api/process-meeting', async (req, res) => {
     console.log(`Transcript length: ${transcript.length} characters`);
 
     // Create AI prompt
-    const prompt = `
-You are an AI assistant specialized in processing business meeting transcripts in Indian languages.
+const prompt = `Analyze this ${language} business meeting transcript. Return ONLY valid JSON with this exact structure:
 
-MEETING LANGUAGE: ${language}
-TRANSCRIPT:
-${transcript}
-
-Analyze this transcript and provide a JSON response with this EXACT structure:
 {
-  "executiveSummary": "A concise 2-3 sentence summary in English",
+  "executiveSummary": "2-3 sentence summary in English",
   "keyPoints": {
-    "english": ["Point 1 in English", "Point 2 in English", "Point 3 in English"],
-    "native": ["Point 1 in ${language}", "Point 2 in ${language}", "Point 3 in ${language}"]
+    "english": ["Key point 1", "Key point 2", "Key point 3"],
+    "native": ["મુખ્ય મુદ્દો 1 in ${language}", "Point 2", "Point 3"]
   },
   "decisions": ["Decision 1", "Decision 2"],
-  "risks": ["Risk 1", "Risk 2"],
+  "risks": ["Risk 1"],
   "tasks": [
     {
       "task": "Task description",
-      "owner": "Person responsible",
+      "owner": "Person name",
       "priority": "High",
       "type": "financial",
       "dueDate": "2025-10-15"
     }
   ],
   "financialHighlights": {
-    "revenue": "₹2.5 crores mentioned",
-    "expenses": "₹45 lakhs pending",
-    "pendingPayments": "₹45 lakhs due Oct 3rd",
-    "budgetApprovals": "2 new hires approved"
+    "revenue": "₹50 lakhs mentioned",
+    "expenses": "₹15 lakhs",
+    "pendingPayments": "₹15 lakhs due Oct 5",
+    "budgetApprovals": "₹10 lakhs Diwali bonus"
   },
   "nextSteps": ["Next step 1", "Next step 2"],
   "attendees": ["Person 1", "Person 2"]
 }
 
-IMPORTANT:
-1. Extract ALL financial figures in Indian Rupees (₹)
-2. Identify specific deadlines and dates
-3. Assign priority levels: High, Medium, or Low
-4. Include both English and native language key points
-5. Return ONLY valid JSON, no markdown, no explanation
-`;
+TRANSCRIPT:
+${transcript}
 
-    // Call Gemini AI
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+Extract: All ₹ amounts, dates (format: YYYY-MM-DD), person names, action items. Be concise.`;
+    
+    // OPTIMIZED: Use faster model with configuration
+const model = genAI.getGenerativeModel({ 
+  model: 'gemini-2.5-flash-8b',
+  generationConfig: {
+    temperature: 0.3,
+    maxOutputTokens: 2048,
+    topP: 0.95,
+    topK: 40,
+  }
+});
 
     // Parse AI response
     let processedData;
@@ -157,12 +154,13 @@ IMPORTANT:
     }
 
     // Add metadata
-    processedData.metadata = {
+   processedData.metadata = {
       meetingTitle: meetingTitle || 'Team Meeting',
       language: language,
       processedAt: new Date().toISOString(),
       transcriptLength: transcript.length,
-      aiModel: 'gemini-pro'
+      aiModel: 'gemini-2.5-flash-8b',
+      processingTime: `${((Date.now() - startTime) / 1000).toFixed(2)}s` // Show speed
     };
 
     // Save to Supabase database
