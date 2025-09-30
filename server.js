@@ -1,6 +1,5 @@
-// Free Multilingual AI Personal Assistant
-// Server.js - Main application file
-
+// Multilingual AI Personal Assistant - Server
+// Free Version using Gemini Pro AI
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -16,8 +15,10 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static('public'));
 
-// Initialize services
+// Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+// Initialize Supabase
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
@@ -31,96 +32,126 @@ const languages = {
   marathi: { code: 'mr-IN', name: 'मराठी', flag: '🇮🇳' }
 };
 
-// Routes
+// Home route
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    service: 'Multilingual AI PA'
+  });
 });
 
-// Process meeting transcript
+// Process meeting transcript with AI
 app.post('/api/process-meeting', async (req, res) => {
   try {
     const { transcript, language, meetingTitle } = req.body;
 
     if (!transcript || !language) {
       return res.status(400).json({ 
+        success: false,
         error: 'Transcript and language are required' 
       });
     }
 
-    console.log(`Processing meeting in ${language}...`);
+    console.log(`Processing meeting: "${meetingTitle}" in ${language}...`);
+    console.log(`Transcript length: ${transcript.length} characters`);
 
-    // Create prompt for Gemini AI
+    // Create AI prompt
     const prompt = `
-You are an AI assistant processing a business meeting transcript in ${language}. 
+You are an AI assistant specialized in processing business meeting transcripts in Indian languages.
 
+MEETING LANGUAGE: ${language}
 TRANSCRIPT:
 ${transcript}
 
-Please analyze this transcript and return a JSON response with the following structure:
+Analyze this transcript and provide a JSON response with this EXACT structure:
 {
-  "executiveSummary": "Brief executive summary in English (max 300 words)",
+  "executiveSummary": "A concise 2-3 sentence summary in English",
   "keyPoints": {
-    "english": ["Array of 5-7 key points in English"],
-    "native": ["Array of 5-7 key points in ${language}"]
+    "english": ["Point 1 in English", "Point 2 in English", "Point 3 in English"],
+    "native": ["Point 1 in ${language}", "Point 2 in ${language}", "Point 3 in ${language}"]
   },
-  "decisions": ["Array of decisions made during the meeting"],
-  "risks": ["Array of risks or concerns identified"],
+  "decisions": ["Decision 1", "Decision 2"],
+  "risks": ["Risk 1", "Risk 2"],
   "tasks": [
     {
       "task": "Task description",
-      "owner": "Person responsible (if mentioned)",
-      "priority": "High|Medium|Low",
-      "type": "financial|administrative|hr|compliance|general",
-      "amount": "₹X,XX,XXX (if financial task)"
+      "owner": "Person responsible",
+      "priority": "High",
+      "type": "financial",
+      "dueDate": "2025-10-15"
     }
   ],
   "financialHighlights": {
-    "revenue": "Revenue figures mentioned with ₹",
-    "expenses": "Expense figures mentioned with ₹",
-    "pendingPayments": "Payment obligations with ₹",
-    "budgetApprovals": "Budget decisions with ₹"
+    "revenue": "₹2.5 crores mentioned",
+    "expenses": "₹45 lakhs pending",
+    "pendingPayments": "₹45 lakhs due Oct 3rd",
+    "budgetApprovals": "2 new hires approved"
   },
-  "nextSteps": ["Array of immediate next steps"],
-  "attendees": ["List of people who spoke (extract from transcript)"]
+  "nextSteps": ["Next step 1", "Next step 2"],
+  "attendees": ["Person 1", "Person 2"]
 }
 
-Focus on:
-1. Financial figures in Indian Rupees (₹)
-2. Action items with clear ownership
-3. Cultural context (festivals, Indian business practices)
-4. Compliance requirements (GST, statutory obligations)
-5. Both English and ${language} language processing
-
-Return only valid JSON, no additional text.
+IMPORTANT:
+1. Extract ALL financial figures in Indian Rupees (₹)
+2. Identify specific deadlines and dates
+3. Assign priority levels: High, Medium, or Low
+4. Include both English and native language key points
+5. Return ONLY valid JSON, no markdown, no explanation
 `;
 
     // Call Gemini AI
     const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    let processedData;
+    const text = response.text();
 
+    // Parse AI response
+    let processedData;
     try {
-      processedData = JSON.parse(response.text());
+      // Remove markdown code blocks if present
+      const cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      processedData = JSON.parse(cleanText);
     } catch (parseError) {
       console.error('JSON Parse Error:', parseError);
-      // Fallback processing
+      console.log('AI Response:', text);
+      
+      // Fallback structure
       processedData = {
-        executiveSummary: "Meeting processed successfully. Please check the transcript for details.",
+        executiveSummary: "Meeting processed. AI response could not be parsed completely.",
         keyPoints: {
-          english: ["Meeting transcript processed", "Action items identified", "Follow-up required"],
-          native: ["मीटिंग ट्रांसक्रिप्ट प्रोसेस किया गया", "एक्शन आइटम्स पहचाने गए", "फॉलो-अप आवश्यक"]
+          english: [
+            "Meeting transcript captured successfully",
+            "Action items identified",
+            "Follow-up required"
+          ],
+          native: [
+            "मीटिंग ट्रांसक्रिप्ट सफलतापूर्वक कैप्चर किया गया",
+            "कार्य आइटम पहचाने गए",
+            "फॉलो-अप आवश्यक"
+          ]
         },
-        decisions: ["Decision details to be reviewed from transcript"],
+        decisions: ["Please review transcript for details"],
         risks: [],
-        tasks: [],
-        financialHighlights: {},
-        nextSteps: ["Review meeting transcript", "Follow up on action items"],
+        tasks: [{
+          task: "Review meeting transcript manually",
+          owner: "Team Lead",
+          priority: "Medium",
+          type: "administrative",
+          dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0]
+        }],
+        financialHighlights: {
+          revenue: "Not extracted",
+          expenses: "Not extracted",
+          pendingPayments: "Not extracted",
+          budgetApprovals: "Not extracted"
+        },
+        nextSteps: ["Review raw transcript", "Extract action items"],
         attendees: []
       };
     }
@@ -130,31 +161,41 @@ Return only valid JSON, no additional text.
       meetingTitle: meetingTitle || 'Team Meeting',
       language: language,
       processedAt: new Date().toISOString(),
-      transcriptLength: transcript.length
+      transcriptLength: transcript.length,
+      aiModel: 'gemini-pro'
     };
 
-    // Save to database
-    const { data, error } = await supabase
-      .from('meetings')
-      .insert({
-        title: meetingTitle || 'Team Meeting',
-        transcript: transcript,
-        language: language,
-        processed_data: processedData,
-        created_at: new Date().toISOString()
-      })
-      .select();
+    // Save to Supabase database
+    try {
+      const { data, error } = await supabase
+        .from('meetings')
+        .insert({
+          title: meetingTitle || 'Team Meeting',
+          transcript: transcript,
+          language: language,
+          processed_data: processedData,
+          created_at: new Date().toISOString()
+        })
+        .select();
 
-    if (error) {
-      console.error('Database Error:', error);
+      if (error) {
+        console.error('Database save error:', error);
+        processedData.savedToDatabase = false;
+      } else {
+        console.log('Meeting saved to database with ID:', data[0]?.id);
+        processedData.savedToDatabase = true;
+        processedData.meetingId = data[0]?.id;
+      }
+    } catch (dbError) {
+      console.error('Database connection error:', dbError);
+      processedData.savedToDatabase = false;
     }
 
     console.log('Meeting processed successfully');
     
     res.json({
       success: true,
-      data: processedData,
-      savedToDatabase: !error
+      data: processedData
     });
 
   } catch (error) {
@@ -171,63 +212,157 @@ app.get('/api/meetings', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('meetings')
-      .select('*')
+      .select('id, title, language, created_at, processed_data')
       .order('created_at', { ascending: false })
-      .limit(20);
+      .limit(50);
 
     if (error) {
       throw error;
     }
 
-    res.json({ success: true, meetings: data || [] });
+    res.json({ 
+      success: true, 
+      meetings: data || [],
+      count: data?.length || 0
+    });
   } catch (error) {
-    console.error('Database fetch error:', error);
+    console.error('Fetch meetings error:', error);
     res.status(500).json({ 
       success: false, 
-      error: 'Failed to fetch meetings' 
+      error: 'Failed to fetch meetings',
+      meetings: []
     });
   }
 });
 
-// Get financial summary
+// Get single meeting by ID
+app.get('/api/meetings/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const { data, error } = await supabase
+      .from('meetings')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({ 
+      success: true, 
+      meeting: data
+    });
+  } catch (error) {
+    console.error('Fetch meeting error:', error);
+    res.status(404).json({ 
+      success: false, 
+      error: 'Meeting not found'
+    });
+  }
+});
+
+// Get financial summary from all meetings
 app.get('/api/financial-summary', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('meetings')
       .select('processed_data')
-      .not('processed_data->financialHighlights', 'is', null);
+      .not('processed_data', 'is', null);
 
     if (error) {
       throw error;
     }
 
     // Aggregate financial data
-    const financialSummary = {
-      totalRevenue: 0,
-      totalExpenses: 0,
-      pendingPayments: 0,
-      meetingsWithFinancialData: data?.length || 0
-    };
+    let totalMeetings = 0;
+    let meetingsWithFinancials = 0;
+    let recentHighlights = [];
 
-    res.json({ success: true, data: financialSummary });
+    if (data) {
+      totalMeetings = data.length;
+      data.forEach(meeting => {
+        const financials = meeting.processed_data?.financialHighlights;
+        if (financials && Object.values(financials).some(v => v && v !== "Not extracted")) {
+          meetingsWithFinancials++;
+          recentHighlights.push(financials);
+        }
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      data: {
+        totalMeetings,
+        meetingsWithFinancials,
+        recentHighlights: recentHighlights.slice(0, 5)
+      }
+    });
   } catch (error) {
     console.error('Financial summary error:', error);
     res.status(500).json({ 
       success: false, 
-      error: 'Failed to get financial summary' 
+      error: 'Failed to get financial summary'
+    });
+  }
+});
+
+// Delete meeting
+app.delete('/api/meetings/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const { error } = await supabase
+      .from('meetings')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Meeting deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete meeting error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to delete meeting'
     });
   }
 });
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Multilingual AI PA running on port ${PORT}`);
-  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 Visit: http://localhost:${PORT}`);
+  console.log(`
+╔════════════════════════════════════════════════╗
+║  🤖 Multilingual AI Personal Assistant        ║
+║  ✅ Server running on port ${PORT}              ║
+║  🌍 Environment: ${process.env.NODE_ENV || 'development'}         ║
+║  🔗 URL: http://localhost:${PORT}               ║
+║  🎤 Languages: English, हिंदी, ગુજરાતી, मराठी  ║
+╚════════════════════════════════════════════════╝
+  `);
+  
+  // Check if environment variables are set
+  if (!process.env.GEMINI_API_KEY) {
+    console.warn('⚠️  WARNING: GEMINI_API_KEY not set!');
+  }
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+    console.warn('⚠️  WARNING: Supabase credentials not set!');
+  }
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('SIGTERM received. Shutting down gracefully...');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('\nSIGINT received. Shutting down gracefully...');
   process.exit(0);
 });
