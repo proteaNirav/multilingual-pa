@@ -22,7 +22,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // OPTIMIZED: Use faster model with better configuration
 const model = genAI.getGenerativeModel({ 
-  model: 'gemini-2.5-flash-8b',
+  model: 'gemini-2.0-flash-exp',
   generationConfig: {
     temperature: 0.3,        // Less creative = faster & more consistent
     maxOutputTokens: 2048,   // Limit output size for speed
@@ -56,7 +56,7 @@ app.get('/health', (req, res) => {
     status: 'OK', 
     timestamp: new Date().toISOString(),
     service: 'Multilingual AI PA - Optimized',
-    model: 'gemini-2.5-flash-8b'
+    model: 'gemini-2.0-flash-exp'
   });
 });
 
@@ -210,7 +210,7 @@ INSTRUCTIONS:
       language: language,
       processedAt: new Date().toISOString(),
       transcriptLength: transcript.length,
-      aiModel: 'gemini-2.5-flash-8b',
+      aiModel: 'gemini-2.0-flash-exp',
       processingTime: `${((Date.now() - startTime) / 1000).toFixed(2)}s`
     };
 
@@ -441,7 +441,7 @@ app.listen(PORT, () => {
 ║  🌍 Environment: ${process.env.NODE_ENV || 'development'}         ║
 ║  🔗 URL: http://localhost:${PORT}               ║
 ║  🎤 Languages: English, हिंदी, ગુજરાતી, मराठी  ║
-║  🚀 Model: gemini-2.5-flash-8b                 ║
+║  🚀 Model: gemini-2.0-flash-exp                 ║
 ╚════════════════════════════════════════════════╝
   `);
   
