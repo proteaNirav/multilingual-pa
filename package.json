@@ -1,7 +1,7 @@
 {
   "name": "multilingual-pa",
   "version": "1.0.0",
-  "description": "Free Multilingual AI Personal Assistant",
+  "description": "Free Multilingual AI Personal Assistant for ProteaHRMS - Optimized",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -12,7 +12,8 @@
     "cors": "^2.8.5",
     "@google/generative-ai": "^0.2.1",
     "@supabase/supabase-js": "^2.38.5",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "body-parser": "^1.20.2"
   },
   "engines": {
     "node": "22.x"
