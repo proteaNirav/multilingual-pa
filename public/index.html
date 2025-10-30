@@ -566,18 +566,13 @@
                     this.recognition = new SpeechRecognition();
                     this.recognition.continuous = true;
                     this.recognition.interimResults = true;
-                    // Add custom vocabulary for better accuracy
                     this.recognition.maxAlternatives = 3;
-                    // Note: Full custom vocabulary requires paid service
-                    
-                    this.recognition.continuous = true;
-                    this.recognition.interimResults = true;
                     this.recognition.lang = this.languages[this.selectedLanguage];
 
                     this.recognition.onresult = (event) => this.handleSpeechResult(event);
                     this.recognition.onerror = (event) => this.handleSpeechError(event);
                     this.recognition.onend = () => this.handleSpeechEnd();
-                    
+
                     console.log('✅ Speech recognition initialized');
                 } else {
                     this.showStatus('❌ Speech recognition not supported. Please use Chrome or Edge browser.', 'error');

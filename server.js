@@ -21,8 +21,8 @@ app.use(express.static('public'));
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // OPTIMIZED: Use faster model with better configuration
-const model = genAI.getGenerativeModel({ 
-  model: 'gemini-2.5-pro',
+const model = genAI.getGenerativeModel({
+  model: 'gemini-1.5-flash-8b',
   generationConfig: {
     temperature: 0.3,        // Less creative = faster & more consistent
     maxOutputTokens: 2048,   // Limit output size for speed
@@ -52,11 +52,11 @@ app.get('/', (req, res) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+  res.json({
+    status: 'OK',
     timestamp: new Date().toISOString(),
     service: 'Multilingual AI PA - Optimized',
-    model: 'gemini-2.5-pro'
+    model: 'gemini-1.5-flash-8b'
   });
 });
 
@@ -91,7 +91,7 @@ app.post('/api/process-meeting', async (req, res) => {
   "executiveSummary": "2-3 sentence summary in English",
   "keyPoints": {
     "english": ["Key point 1", "Key point 2", "Key point 3", "Key point 4", "Key point 5"],
-    "native": ["મુખ્ય મુદ્દો 1 in ${language}", "મુદ્દો 2", "Point 3", "Point 4", "Point 5"]
+    "native": ["Key point 1 in ${language}", "Key point 2 in ${language}", "Key point 3 in ${language}", "Key point 4 in ${language}", "Key point 5 in ${language}"]
   },
   "decisions": ["Decision 1 made in meeting", "Decision 2"],
   "risks": ["Risk or concern 1", "Risk 2"],
@@ -210,7 +210,7 @@ INSTRUCTIONS:
       language: language,
       processedAt: new Date().toISOString(),
       transcriptLength: transcript.length,
-      aiModel: 'gemini-2.5-pro',
+      aiModel: 'gemini-1.5-flash-8b',
       processingTime: `${((Date.now() - startTime) / 1000).toFixed(2)}s`
     };
 
@@ -441,7 +441,7 @@ app.listen(PORT, () => {
 ║  🌍 Environment: ${process.env.NODE_ENV || 'development'}         ║
 ║  🔗 URL: http://localhost:${PORT}               ║
 ║  🎤 Languages: English, हिंदी, ગુજરાતી, मराठी  ║
-║  🚀 Model: gemini-2.5-pro                 ║
+║  🚀 Model: gemini-1.5-flash-8b            ║
 ╚════════════════════════════════════════════════╝
   `);
   
