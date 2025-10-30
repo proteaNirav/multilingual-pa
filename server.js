@@ -8,14 +8,55 @@ const cors = require('cors');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { createClient } = require('@supabase/supabase-js');
 const path = require('path');
+const rateLimit = require('express-rate-limit');
+const validator = require('validator');
+const xss = require('xss');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '50mb' })); // Support longer meetings
+app.use(express.json({ limit: '5mb' })); // Reasonable limit for transcripts (security fix)
 app.use(express.static('public'));
+
+// Security: Rate Limiting
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per window
+  message: { success: false, error: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+const aiLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // Limit to 10 AI requests per hour
+  message: { success: false, error: 'AI request limit reached. Please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Apply rate limiting
+app.use('/api/', generalLimiter);
+app.use('/api/process-meeting', aiLimiter);
+
+// Security: Input Sanitization Helper
+const sanitizeInput = (input) => {
+  if (typeof input !== 'string') return '';
+  return xss(validator.trim(input));
+};
+
+// Security: AI Request Timeout Wrapper
+const generateWithTimeout = async (model, prompt, timeoutMs = 60000) => {
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('AI request timeout')), timeoutMs)
+  );
+
+  const aiPromise = model.generateContent(prompt);
+
+  return Promise.race([aiPromise, timeoutPromise]);
+};
 
 // Initialize Gemini AI with OPTIMIZED settings
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -63,21 +104,40 @@ app.get('/health', (req, res) => {
 // OPTIMIZED: Process meeting transcript with AI
 app.post('/api/process-meeting', async (req, res) => {
   try {
-    const { transcript, language, meetingTitle } = req.body;
+    // Security: Sanitize all user inputs
+    const transcript = sanitizeInput(req.body.transcript);
+    const language = sanitizeInput(req.body.language);
+    const meetingTitle = sanitizeInput(req.body.meetingTitle);
     const startTime = Date.now(); // Track processing time
 
     // Validation
     if (!transcript || !language) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        error: 'Transcript and language are required' 
+        error: 'Transcript and language are required'
+      });
+    }
+
+    // Validate language is one of the supported options
+    const validLanguages = ['english', 'hindi', 'gujarati', 'marathi'];
+    if (!validLanguages.includes(language)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid language. Must be: english, hindi, gujarati, or marathi'
       });
     }
 
     if (transcript.length < 50) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        error: 'Transcript too short. Please record at least 30 seconds.' 
+        error: 'Transcript too short. Please record at least 30 seconds.'
+      });
+    }
+
+    if (transcript.length > 500000) {
+      return res.status(400).json({
+        success: false,
+        error: 'Transcript too long. Maximum 500,000 characters allowed.'
       });
     }
 
@@ -126,8 +186,8 @@ INSTRUCTIONS:
 - Be concise but accurate
 - Return ONLY the JSON, no additional text`;
 
-    // Call Gemini AI
-    const result = await model.generateContent(prompt);
+    // Call Gemini AI with timeout protection
+    const result = await generateWithTimeout(model, prompt, 60000); // 60 second timeout
     const response = await result.response;
     const responseText = response.text();
 
@@ -233,7 +293,7 @@ INSTRUCTIONS:
       if (error) {
         console.error('Database save error:', error);
         processedData.savedToDatabase = false;
-        processedData.dbError = error.message;
+        // Don't expose database error details to client
       } else {
         console.log('Meeting saved to database with ID:', data[0]?.id);
         processedData.savedToDatabase = true;
@@ -242,7 +302,7 @@ INSTRUCTIONS:
     } catch (dbError) {
       console.error('Database connection error:', dbError);
       processedData.savedToDatabase = false;
-      processedData.dbError = 'Database connection failed';
+      // Don't expose database error details to client
     }
 
     const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
@@ -255,10 +315,19 @@ INSTRUCTIONS:
 
   } catch (error) {
     console.error('Processing Error:', error);
+
+    // Security: Don't expose internal error details
+    let errorMessage = 'Failed to process meeting. Please try again.';
+
+    if (error.message === 'AI request timeout') {
+      errorMessage = 'AI processing took too long. Please try with a shorter transcript.';
+    } else if (error.message && error.message.includes('API')) {
+      errorMessage = 'AI service temporarily unavailable. Please try again later.';
+    }
+
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to process meeting',
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      error: errorMessage
     });
   }
 });
@@ -445,15 +514,25 @@ app.listen(PORT, () => {
 ╚════════════════════════════════════════════════╝
   `);
   
-  // Check environment variables
+  // Validate environment variables
   if (!process.env.GEMINI_API_KEY) {
-    console.warn('⚠️  WARNING: GEMINI_API_KEY not set!');
+    console.error('❌ CRITICAL: GEMINI_API_KEY not set! Server cannot function without it.');
+    console.error('   Please set GEMINI_API_KEY in your .env file');
+    process.exit(1);
   }
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
-    console.warn('⚠️  WARNING: Supabase credentials not set!');
+    console.error('❌ CRITICAL: Supabase credentials not set! Database features will not work.');
+    console.error('   Please set SUPABASE_URL and SUPABASE_ANON_KEY in your .env file');
+    process.exit(1);
   }
-  
-  console.log('✅ All systems ready! Start recording meetings...\n');
+
+  // Validate API keys format
+  if (process.env.GEMINI_API_KEY.length < 20) {
+    console.error('❌ CRITICAL: GEMINI_API_KEY appears invalid (too short)');
+    process.exit(1);
+  }
+
+  console.log('✅ All systems ready! Security enabled. Start recording meetings...\n');
 });
 
 // Graceful shutdown
