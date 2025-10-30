@@ -332,30 +332,44 @@ INSTRUCTIONS:
   }
 });
 
-// Get meeting history
+// Get meeting history with search and filter
 app.get('/api/meetings', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 50;
-    
-    const { data, error } = await supabase
+    const search = req.query.search ? sanitizeInput(req.query.search) : '';
+    const language = req.query.language ? sanitizeInput(req.query.language) : '';
+
+    let query = supabase
       .from('meetings')
       .select('id, title, language, created_at, processed_data')
       .order('created_at', { ascending: false })
       .limit(limit);
 
+    // Apply search filter (search in title)
+    if (search) {
+      query = query.ilike('title', `%${search}%`);
+    }
+
+    // Apply language filter
+    if (language && ['english', 'hindi', 'gujarati', 'marathi'].includes(language)) {
+      query = query.eq('language', language);
+    }
+
+    const { data, error } = await query;
+
     if (error) {
       throw error;
     }
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       meetings: data || [],
       count: data?.length || 0
     });
   } catch (error) {
     console.error('Fetch meetings error:', error);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: 'Failed to fetch meetings',
       meetings: []
     });
