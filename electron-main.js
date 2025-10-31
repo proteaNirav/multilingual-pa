@@ -248,6 +248,98 @@ ipcMain.handle('get-feedback-history', async () => {
   return store.get('feedback', []);
 });
 
+// Create GitHub issue with auto-fix
+ipcMain.handle('create-github-issue', async (event, issueData) => {
+  try {
+    const settings = store.get('settings', {});
+    const githubToken = settings.githubToken;
+    const githubRepo = settings.githubRepo || 'proteaNirav/multilingual-pa';
+
+    if (!githubToken) {
+      throw new Error('GitHub token not configured. Please add it in Settings.');
+    }
+
+    log.info('Creating GitHub issue:', issueData.title);
+
+    // Create issue via GitHub REST API
+    const https = require('https');
+    const url = new URL(`https://api.github.com/repos/${githubRepo}/issues`);
+
+    const issueBody = `
+## Issue Description
+
+${issueData.body}
+
+---
+
+## System Information
+
+- **App Version:** ${issueData.appVersion}
+- **User Agent:** ${issueData.userAgent}
+- **Platform:** ${process.platform}
+- **Reported via:** Desktop App
+
+---
+
+**Note:** This issue was automatically created by the user via the desktop app. The auto-fix bot will now analyze and attempt to resolve this issue.
+`;
+
+    const postData = JSON.stringify({
+      title: issueData.title,
+      body: issueBody,
+      labels: ['auto-fix', issueData.type === 'bug' ? 'bug' : 'enhancement', 'user-reported']
+    });
+
+    return new Promise((resolve, reject) => {
+      const options = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': postData.length,
+          'Authorization': `token ${githubToken}`,
+          'User-Agent': 'Multilingual-PA-Desktop',
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      };
+
+      const req = https.request(url, options, (res) => {
+        let data = '';
+
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+
+        res.on('end', () => {
+          if (res.statusCode === 201) {
+            const issue = JSON.parse(data);
+            log.info('GitHub issue created successfully:', issue.number);
+            resolve({
+              success: true,
+              issueNumber: issue.number,
+              issueUrl: issue.html_url
+            });
+          } else {
+            log.error('GitHub API error:', res.statusCode, data);
+            reject(new Error(`GitHub API returned ${res.statusCode}: ${data}`));
+          }
+        });
+      });
+
+      req.on('error', (error) => {
+        log.error('Failed to create GitHub issue:', error);
+        reject(error);
+      });
+
+      req.write(postData);
+      req.end();
+    });
+
+  } catch (error) {
+    log.error('Failed to create GitHub issue:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Report error
 ipcMain.handle('report-error', async (event, errorData) => {
   try {

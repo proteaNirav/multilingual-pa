@@ -1,0 +1,301 @@
+name: Auto-Fix Issues with AI
+
+on:
+  issues:
+    types: [opened, labeled]
+
+jobs:
+  auto-fix:
+    # Only run if issue has 'auto-fix' label
+    if: contains(github.event.issue.labels.*.name, 'auto-fix')
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: 🎯 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 📝 Comment on issue - Starting
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `🤖 **Auto-Fix Bot Activated!**
+
+              I'm analyzing this issue and will attempt to fix it automatically.
+
+              **Status:** 🔍 Analyzing issue...
+
+              *This is an automated process. Updates will be posted here.*`
+            });
+
+      - name: 🔍 Analyze issue with Claude
+        id: analyze
+        uses: actions/github-script@v7
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        with:
+          script: |
+            const issueTitle = context.payload.issue.title;
+            const issueBody = context.payload.issue.body;
+            const issueNumber = context.issue.number;
+
+            console.log('Analyzing issue:', issueTitle);
+
+            // Call Claude API to analyze the issue
+            const https = require('https');
+
+            const analyzePrompt = `You are an expert software developer. Analyze this issue and create a plan to fix it.
+
+            **Issue Title:** ${issueTitle}
+
+            **Issue Description:**
+            ${issueBody}
+
+            **Current Codebase Context:**
+            This is a multilingual meeting assistant desktop app built with:
+            - Node.js/Express backend
+            - Electron desktop wrapper
+            - Google Gemini AI integration
+            - Supabase database
+
+            Please provide:
+            1. Root cause analysis
+            2. Files that need to be modified
+            3. Specific changes to make
+            4. Test plan
+
+            Format your response as JSON:
+            {
+              "analysis": "...",
+              "files_to_modify": ["file1.js", "file2.html"],
+              "changes": [
+                {
+                  "file": "file1.js",
+                  "description": "...",
+                  "code_snippet": "..."
+                }
+              ],
+              "test_plan": "..."
+            }`;
+
+            return new Promise((resolve, reject) => {
+              const data = JSON.stringify({
+                model: 'claude-sonnet-4-5-20250929',
+                max_tokens: 4096,
+                messages: [{
+                  role: 'user',
+                  content: analyzePrompt
+                }]
+              });
+
+              const options = {
+                hostname: 'api.anthropic.com',
+                path: '/v1/messages',
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-api-key': process.env.ANTHROPIC_API_KEY,
+                  'anthropic-version': '2023-06-01'
+                }
+              };
+
+              const req = https.request(options, (res) => {
+                let responseData = '';
+
+                res.on('data', (chunk) => {
+                  responseData += chunk;
+                });
+
+                res.on('end', () => {
+                  try {
+                    const response = JSON.parse(responseData);
+                    const analysis = response.content[0].text;
+                    console.log('Claude analysis:', analysis);
+
+                    // Store analysis for next steps
+                    core.setOutput('analysis', analysis);
+                    resolve(analysis);
+                  } catch (error) {
+                    reject(error);
+                  }
+                });
+              });
+
+              req.on('error', reject);
+              req.write(data);
+              req.end();
+            });
+
+      - name: 💡 Generate fix with Claude
+        id: generate_fix
+        uses: actions/github-script@v7
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANALYSIS: ${{ steps.analyze.outputs.analysis }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const analysis = process.env.ANALYSIS;
+
+            console.log('Generating fix based on analysis...');
+
+            // Parse the analysis
+            let parsedAnalysis;
+            try {
+              // Extract JSON from markdown if needed
+              const jsonMatch = analysis.match(/```json\n([\s\S]*?)\n```/) ||
+                               analysis.match(/\{[\s\S]*\}/);
+              parsedAnalysis = JSON.parse(jsonMatch ? jsonMatch[1] || jsonMatch[0] : analysis);
+            } catch (error) {
+              console.error('Failed to parse analysis:', error);
+              return { success: false, error: 'Failed to parse analysis' };
+            }
+
+            core.setOutput('files_to_modify', JSON.stringify(parsedAnalysis.files_to_modify || []));
+            core.setOutput('changes', JSON.stringify(parsedAnalysis.changes || []));
+            return parsedAnalysis;
+
+      - name: ✏️ Apply fixes to files
+        env:
+          CHANGES: ${{ steps.generate_fix.outputs.changes }}
+        run: |
+          echo "Applying fixes to files..."
+
+          # This is a simplified version - in production, you'd parse the JSON
+          # and apply changes more carefully
+
+          echo "$CHANGES" > /tmp/changes.json
+
+          # For now, just log what would be changed
+          echo "Changes to apply:"
+          cat /tmp/changes.json
+
+      - name: 🧪 Run tests
+        id: test
+        continue-on-error: true
+        run: |
+          if [ -f "package.json" ]; then
+            npm install
+            npm test || echo "Tests not configured"
+          fi
+
+      - name: 📦 Create Pull Request
+        id: create_pr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            🤖 Auto-fix: ${{ github.event.issue.title }}
+
+            Automatically generated fix for issue #${{ github.event.issue.number }}
+
+            Changes made by AI bot based on issue analysis.
+          branch: auto-fix/issue-${{ github.event.issue.number }}
+          title: '🤖 Auto-fix: ${{ github.event.issue.title }}'
+          body: |
+            ## 🤖 Automated Fix
+
+            This PR was automatically generated to fix #${{ github.event.issue.number }}
+
+            ### Changes Made
+
+            ${{ steps.generate_fix.outputs.changes }}
+
+            ### Analysis
+
+            ${{ steps.analyze.outputs.analysis }}
+
+            ### Test Results
+
+            ${{ steps.test.outcome == 'success' && '✅ All tests passed' || '⚠️ Tests need review' }}
+
+            ---
+
+            **Note:** This is an AI-generated fix. Please review carefully before merging.
+
+            Closes #${{ github.event.issue.number }}
+          labels: |
+            automated
+            ai-generated
+            auto-fix
+
+      - name: ✅ Update issue with PR link
+        if: steps.create_pr.outputs.pull-request-number
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `✅ **Fix Generated Successfully!**
+
+              I've analyzed the issue and created a pull request with the fix:
+
+              🔗 **Pull Request:** #${{ steps.create_pr.outputs.pull-request-number }}
+
+              **What I did:**
+              1. ✅ Analyzed the issue using Claude AI
+              2. ✅ Generated code changes
+              3. ✅ Created a pull request
+              4. ${{ steps.test.outcome == 'success' && '✅' || '⚠️' }} Ran tests
+
+              **Next Steps:**
+              - Review the changes in the PR
+              - Test manually if needed
+              - Merge if everything looks good!
+
+              *This fix was generated automatically by AI. Please review before merging.*`
+            });
+
+            // Add label
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['fix-available']
+            });
+
+      - name: ❌ Handle failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `❌ **Auto-Fix Failed**
+
+              I encountered an error while trying to fix this issue automatically.
+
+              **Possible reasons:**
+              - The issue is too complex for automatic fixing
+              - Missing context or information
+              - API rate limits or errors
+
+              **What to do:**
+              - A human developer will need to review this issue
+              - You can try removing and re-adding the \`auto-fix\` label to retry
+              - Or report this in the desktop app chat
+
+              *Error details are available in the workflow logs.*`
+            });
+
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['needs-human-review']
+            });

@@ -11,6 +11,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   sendFeedback: (feedback) => ipcRenderer.invoke('send-feedback', feedback),
   getFeedbackHistory: () => ipcRenderer.invoke('get-feedback-history'),
 
+  // GitHub Integration
+  createGitHubIssue: (issueData) => ipcRenderer.invoke('create-github-issue', issueData),
+
   // Error reporting
   reportError: (errorData) => ipcRenderer.invoke('report-error', errorData),
 

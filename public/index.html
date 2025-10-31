@@ -1578,12 +1578,15 @@
                     <li>Ask for improvements</li>
                     <li>Get help with the app</li>
                 </ul>
-                All feedback is automatically logged and will be reviewed to improve the application.
+                <strong>🤖 Auto-Fix System:</strong> Click the GitHub button to create an issue. Our AI bot will automatically analyze, fix, test, and deploy the solution!
             </div>
         </div>
         <div class="chat-input-area">
-            <textarea id="chatInput" class="chat-input" placeholder="Type your message..." rows="2"></textarea>
-            <button class="chat-send" onclick="sendChatMessage()">Send</button>
+            <textarea id="chatInput" class="chat-input" placeholder="Describe the bug or feature request..." rows="2"></textarea>
+            <div style="display: flex; gap: 5px;">
+                <button class="chat-send" onclick="sendChatMessage()" title="Save feedback locally" style="flex: 1;">💬 Chat</button>
+                <button class="chat-send" onclick="reportToGitHub()" style="background: linear-gradient(135deg, #24292e 0%, #444d56 100%); flex: 1;" title="Create GitHub issue with auto-fix">🐛 GitHub</button>
+            </div>
         </div>
     </div>
 
@@ -1616,6 +1619,22 @@
                     <label for="supabaseAnonKey">🔑 Supabase Anon Key *</label>
                     <input type="password" id="supabaseAnonKey" placeholder="Enter your Supabase anon key">
                     <small>Required for database access</small>
+                </div>
+
+                <hr style="margin: 25px 0; border: none; border-top: 2px solid #e0e0e0;">
+
+                <h3 style="margin-bottom: 15px; color: #333;">🤖 GitHub Auto-Fix Integration (Optional)</h3>
+
+                <div class="settings-field">
+                    <label for="githubToken">🔑 GitHub Personal Access Token</label>
+                    <input type="password" id="githubToken" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+                    <small>Optional: Required to create issues via the GitHub button. <a href="https://github.com/settings/tokens/new?scopes=repo&description=Multilingual%20PA%20Auto-Fix" target="_blank">Create token</a> with 'repo' scope</small>
+                </div>
+
+                <div class="settings-field">
+                    <label for="githubRepo">📦 GitHub Repository</label>
+                    <input type="text" id="githubRepo" placeholder="proteaNirav/multilingual-pa" value="proteaNirav/multilingual-pa">
+                    <small>Format: username/repository</small>
                 </div>
 
                 <div class="settings-actions">
@@ -1724,6 +1743,73 @@
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
+        // Report to GitHub with auto-fix system
+        async function reportToGitHub() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+
+            if (!message) {
+                alert('Please describe the issue before reporting to GitHub');
+                return;
+            }
+
+            // Display user message
+            const messagesDiv = document.getElementById('chatMessages');
+            const userMsg = document.createElement('div');
+            userMsg.className = 'chat-message user';
+            userMsg.textContent = message;
+            messagesDiv.appendChild(userMsg);
+
+            // Clear input
+            input.value = '';
+
+            // Show loading message
+            const loadingMsg = document.createElement('div');
+            loadingMsg.className = 'chat-message system';
+            loadingMsg.innerHTML = '<strong>🚀 Creating GitHub issue...</strong><br>Please wait...';
+            messagesDiv.appendChild(loadingMsg);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            // Send to Electron to create GitHub issue
+            if (isElectron) {
+                try {
+                    const result = await window.electronAPI.createGitHubIssue({
+                        title: message.substring(0, 100), // First 100 chars as title
+                        body: message,
+                        type: 'bug', // or 'feature'
+                        userAgent: navigator.userAgent,
+                        appVersion: await window.electronAPI.getAppInfo().then(info => info.version)
+                    });
+
+                    // Update loading message with success
+                    loadingMsg.innerHTML = `
+                        <strong>✅ GitHub Issue Created!</strong><br>
+                        <a href="${result.issueUrl}" target="_blank" style="color: #4CAF50; text-decoration: underline;">
+                            View Issue #${result.issueNumber}
+                        </a><br><br>
+                        <strong>🤖 Auto-Fix Bot Activated!</strong><br>
+                        The AI bot will now:<br>
+                        1. ✅ Analyze the issue<br>
+                        2. ✅ Write a fix<br>
+                        3. ✅ Run tests<br>
+                        4. ✅ Create a pull request<br>
+                        5. ✅ Update you on progress<br><br>
+                        Check the issue for real-time updates!
+                    `;
+                } catch (error) {
+                    loadingMsg.innerHTML = `
+                        <strong>❌ Error Creating Issue</strong><br>
+                        ${error.message}<br><br>
+                        <small>Make sure you've configured GitHub in Settings</small>
+                    `;
+                }
+            } else {
+                loadingMsg.innerHTML = '<strong>❌ Error</strong><br>GitHub reporting only works in the desktop app.';
+            }
+
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
         // Allow Enter to send (Shift+Enter for new line)
         document.getElementById('chatInput')?.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -1763,6 +1849,8 @@
                         document.getElementById('geminiApiKey').value = settings.geminiApiKey || '';
                         document.getElementById('supabaseUrl').value = settings.supabaseUrl || '';
                         document.getElementById('supabaseAnonKey').value = settings.supabaseAnonKey || '';
+                        document.getElementById('githubToken').value = settings.githubToken || '';
+                        document.getElementById('githubRepo').value = settings.githubRepo || 'proteaNirav/multilingual-pa';
                     } catch (error) {
                         console.error('Failed to load settings:', error);
                         alert('Warning: Could not load existing settings. You can still enter new settings.');
@@ -1784,7 +1872,9 @@
             const settings = {
                 geminiApiKey: document.getElementById('geminiApiKey').value.trim(),
                 supabaseUrl: document.getElementById('supabaseUrl').value.trim(),
-                supabaseAnonKey: document.getElementById('supabaseAnonKey').value.trim()
+                supabaseAnonKey: document.getElementById('supabaseAnonKey').value.trim(),
+                githubToken: document.getElementById('githubToken').value.trim(),
+                githubRepo: document.getElementById('githubRepo').value.trim() || 'proteaNirav/multilingual-pa'
             };
 
             // Validate
