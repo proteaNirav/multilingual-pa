@@ -1630,21 +1630,49 @@
         // Electron API integration
         let isElectron = typeof window.electronAPI !== 'undefined';
 
+        console.log('=== Electron Detection ===');
+        console.log('isElectron:', isElectron);
+        console.log('window.electronAPI exists:', typeof window.electronAPI);
+
         // Show Electron-only UI elements
         if (isElectron) {
-            document.getElementById('chatFab').style.display = 'flex';
-            document.getElementById('settingsFab').style.display = 'flex';
+            console.log('Running in Electron mode - showing UI elements');
+            const chatFab = document.getElementById('chatFab');
+            const settingsFab = document.getElementById('settingsFab');
+
+            if (chatFab) {
+                chatFab.style.display = 'flex';
+                console.log('Chat button enabled');
+            } else {
+                console.error('Chat FAB not found!');
+            }
+
+            if (settingsFab) {
+                settingsFab.style.display = 'flex';
+                console.log('Settings button enabled');
+            } else {
+                console.error('Settings FAB not found!');
+            }
 
             // Listen for menu events
-            window.electronAPI.onOpenSettings(() => openSettings());
+            window.electronAPI.onOpenSettings(() => {
+                console.log('Settings opened via menu');
+                openSettings();
+            });
             window.electronAPI.onOpenChat(() => {
+                console.log('Chat opened via menu');
                 document.getElementById('chatPanel').classList.add('active');
             });
 
             // Load app info
             window.electronAPI.getAppInfo().then(info => {
-                console.log('Running in Electron:', info);
+                console.log('=== Running in Electron ===');
+                console.log('App info:', info);
+            }).catch(err => {
+                console.error('Failed to get app info:', err);
             });
+        } else {
+            console.log('Running in browser mode - Electron features disabled');
         }
 
         // Chat functions
@@ -1706,19 +1734,45 @@
 
         // Settings functions
         async function openSettings() {
-            const modal = document.getElementById('settingsModal');
-            modal.classList.add('active');
-
-            // Load current settings
-            if (isElectron) {
-                try {
-                    const settings = await window.electronAPI.getSettings();
-                    document.getElementById('geminiApiKey').value = settings.geminiApiKey || '';
-                    document.getElementById('supabaseUrl').value = settings.supabaseUrl || '';
-                    document.getElementById('supabaseAnonKey').value = settings.supabaseAnonKey || '';
-                } catch (error) {
-                    console.error('Failed to load settings:', error);
+            console.log('openSettings called');
+            try {
+                const modal = document.getElementById('settingsModal');
+                if (!modal) {
+                    console.error('Settings modal not found!');
+                    alert('Error: Settings modal not found. Please restart the app.');
+                    return;
                 }
+
+                console.log('Adding active class to modal');
+                modal.classList.add('active');
+
+                // Verify modal is visible
+                const computedStyle = window.getComputedStyle(modal);
+                console.log('Modal display:', computedStyle.display);
+                console.log('Modal z-index:', computedStyle.zIndex);
+
+                // Load current settings
+                if (isElectron) {
+                    try {
+                        console.log('Loading settings from Electron...');
+                        const settings = await window.electronAPI.getSettings();
+                        console.log('Settings loaded:', {
+                            hasGemini: !!settings.geminiApiKey,
+                            hasSupabase: !!settings.supabaseUrl
+                        });
+                        document.getElementById('geminiApiKey').value = settings.geminiApiKey || '';
+                        document.getElementById('supabaseUrl').value = settings.supabaseUrl || '';
+                        document.getElementById('supabaseAnonKey').value = settings.supabaseAnonKey || '';
+                    } catch (error) {
+                        console.error('Failed to load settings:', error);
+                        alert('Warning: Could not load existing settings. You can still enter new settings.');
+                    }
+                } else {
+                    console.log('Not running in Electron, skipping settings load');
+                }
+            } catch (error) {
+                console.error('Error in openSettings:', error);
+                alert('Error opening settings: ' + error.message);
             }
         }
 
@@ -1760,6 +1814,23 @@
             if (e.target.id === 'settingsModal') {
                 closeSettings();
             }
+        });
+
+        // Keyboard shortcut for settings (Ctrl+,)
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+                e.preventDefault();
+                console.log('Settings shortcut triggered');
+                openSettings();
+            }
+        });
+
+        // Debug: Test if modal exists on page load
+        window.addEventListener('load', () => {
+            console.log('=== Page loaded - checking elements ===');
+            console.log('settingsModal exists:', !!document.getElementById('settingsModal'));
+            console.log('settingsFab exists:', !!document.getElementById('settingsFab'));
+            console.log('chatFab exists:', !!document.getElementById('chatFab'));
         });
     </script>
 
