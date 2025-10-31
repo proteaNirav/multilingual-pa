@@ -22,6 +22,7 @@
       "electron-main.js",
       "preload.js",
       "server.js",
+      "database-adapter.js",
       "public/**/*",
       "electron/**/*",
       "node_modules/**/*",
@@ -57,7 +58,11 @@
     "validator": "^13.11.0",
     "xss": "^1.0.14",
     "electron-store": "^8.1.0",
-    "electron-log": "^5.0.0"
+    "electron-log": "^5.0.0",
+    "sqlite3": "^5.1.6",
+    "mssql": "^10.0.2",
+    "mysql2": "^3.6.5",
+    "pg": "^8.11.3"
   },
   "devDependencies": {
     "electron": "^27.1.3",
