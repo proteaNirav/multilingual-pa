@@ -792,15 +792,23 @@
 
             handleSpeechError(event) {
                 console.error('Speech recognition error:', event.error);
-                
+
                 if (event.error === 'no-speech') {
                     // Don't show error for no-speech, just continue
                     console.log('No speech detected, continuing...');
                 } else if (event.error === 'not-allowed') {
                     this.showStatus('❌ Microphone access denied. Please allow microphone access in your browser settings.', 'error');
                     this.stopRecording();
+                } else if (event.error === 'network') {
+                    this.showStatus('⚠️ Speech recognition requires internet connection. Please check your connection or type transcript manually.', 'error');
+                    this.stopRecording();
+                    // Suggest manual input
+                    alert('Speech recognition is not available.\n\n✅ SOLUTION: Type or paste your transcript directly in the text box above, then click "Process Meeting".');
+                } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                    this.showStatus('❌ Speech recognition service not available. Please type transcript manually.', 'error');
+                    this.stopRecording();
                 } else {
-                    this.showStatus(`⚠️ Speech recognition error: ${event.error}`, 'error');
+                    this.showStatus(`⚠️ Speech recognition error: ${event.error}. You can type the transcript manually instead.`, 'error');
                 }
             }
 
