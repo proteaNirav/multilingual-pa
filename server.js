@@ -72,11 +72,34 @@ const model = genAI.getGenerativeModel({
   }
 });
 
-// Initialize Supabase
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
+// Initialize Supabase (lazy - only when credentials are available)
+let supabase = null;
+
+function getSupabaseClient() {
+  if (!supabase && process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
+    supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_ANON_KEY
+    );
+  }
+  return supabase;
+}
+
+function isSupabaseConfigured() {
+  return !!(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY);
+}
+
+// Middleware to check if Supabase is configured (for database endpoints)
+function requireSupabase(req, res, next) {
+  if (!isSupabaseConfigured()) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database not configured. Please configure Supabase credentials in Settings.',
+      needsSetup: true
+    });
+  }
+  next();
+}
 
 // Language configuration
 const languages = {
@@ -279,7 +302,7 @@ INSTRUCTIONS:
 
     // Save to Supabase database
     try {
-      const { data, error } = await supabase
+      const { data, error } = await getSupabaseClient()
         .from('meetings')
         .insert({
           title: meetingTitle || 'Team Meeting',
@@ -333,7 +356,7 @@ INSTRUCTIONS:
 });
 
 // Get meeting history with search and filter
-app.get('/api/meetings', async (req, res) => {
+app.get('/api/meetings', requireSupabase, async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 50;
     const search = req.query.search ? sanitizeInput(req.query.search) : '';
@@ -377,11 +400,11 @@ app.get('/api/meetings', async (req, res) => {
 });
 
 // Get single meeting by ID
-app.get('/api/meetings/:id', async (req, res) => {
+app.get('/api/meetings/:id', requireSupabase, async (req, res) => {
   try {
     const { id } = req.params;
     
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseClient()
       .from('meetings')
       .select('*')
       .eq('id', id)
@@ -405,9 +428,9 @@ app.get('/api/meetings/:id', async (req, res) => {
 });
 
 // Get financial summary from all meetings
-app.get('/api/financial-summary', async (req, res) => {
+app.get('/api/financial-summary', requireSupabase, async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseClient()
       .from('meetings')
       .select('processed_data, created_at')
       .not('processed_data', 'is', null)
@@ -456,11 +479,11 @@ app.get('/api/financial-summary', async (req, res) => {
 });
 
 // Delete meeting
-app.delete('/api/meetings/:id', async (req, res) => {
+app.delete('/api/meetings/:id', requireSupabase, async (req, res) => {
   try {
     const { id } = req.params;
     
-    const { error } = await supabase
+    const { error } = await getSupabaseClient()
       .from('meetings')
       .delete()
       .eq('id', id);
@@ -485,7 +508,7 @@ app.delete('/api/meetings/:id', async (req, res) => {
 // Get statistics
 app.get('/api/stats', async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseClient()
       .from('meetings')
       .select('language, created_at, processed_data');
 
