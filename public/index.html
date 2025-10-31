@@ -1591,7 +1591,7 @@
     </div>
 
     <!-- Settings FAB (Electron Only) -->
-    <div id="settingsFab" class="settings-fab" onclick="openSettings()" style="display: none;">
+    <div id="settingsFab" class="settings-fab" style="display: none;">
         <span class="settings-fab-icon">⚙️</span>
     </div>
 
@@ -1921,6 +1921,13 @@
             console.log('settingsModal exists:', !!document.getElementById('settingsModal'));
             console.log('settingsFab exists:', !!document.getElementById('settingsFab'));
             console.log('chatFab exists:', !!document.getElementById('chatFab'));
+
+            // Attach click handler to settings button
+            const settingsFab = document.getElementById('settingsFab');
+            if (settingsFab) {
+                settingsFab.addEventListener('click', openSettings);
+                console.log('✅ Settings button click handler attached');
+            }
         });
     </script>
 
