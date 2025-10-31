@@ -23,6 +23,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Clear data
   clearData: () => ipcRenderer.invoke('clear-data'),
 
+  // Restart app (used by UI Health Monitor)
+  restartApp: () => ipcRenderer.invoke('restart-app'),
+
   // Listen for events from main process
   onOpenSettings: (callback) => ipcRenderer.on('open-settings', callback),
   onOpenChat: (callback) => ipcRenderer.on('open-chat', callback)

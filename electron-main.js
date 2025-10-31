@@ -409,6 +409,19 @@ ipcMain.handle('clear-data', async () => {
   }
 });
 
+// Restart app (used by UI Health Monitor for auto-recovery)
+ipcMain.handle('restart-app', async () => {
+  try {
+    log.info('App restart requested by UI Health Monitor');
+    app.relaunch();
+    app.quit();
+    return { success: true };
+  } catch (error) {
+    log.error('Failed to restart app:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
   log.error('Uncaught Exception:', error);
