@@ -714,25 +714,28 @@ app.listen(PORT, async () => {
     console.log('   Meeting data will not be saved. Configure database in Settings.');
   }
   
-  // Validate environment variables
+  // Validate environment variables (warnings only - let app start so user can configure)
   if (!process.env.GEMINI_API_KEY) {
-    console.error('❌ CRITICAL: GEMINI_API_KEY not set! Server cannot function without it.');
-    console.error('   Please set GEMINI_API_KEY in your .env file');
-    process.exit(1);
+    console.log('⚠️  Warning: GEMINI_API_KEY not set!');
+    console.log('   AI processing will not work until configured in Settings.');
+    console.log('   Please configure your Gemini API key in the Settings menu.');
+  } else {
+    console.log('✅ Gemini API key configured');
   }
+
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
-    console.error('❌ CRITICAL: Supabase credentials not set! Database features will not work.');
-    console.error('   Please set SUPABASE_URL and SUPABASE_ANON_KEY in your .env file');
-    process.exit(1);
+    console.log('⚠️  Supabase credentials not set (optional for telemetry)');
+  } else {
+    console.log('✅ Supabase configured (telemetry enabled)');
   }
 
-  // Validate API keys format
-  if (process.env.GEMINI_API_KEY.length < 20) {
-    console.error('❌ CRITICAL: GEMINI_API_KEY appears invalid (too short)');
-    process.exit(1);
+  // Validate API keys format (only if provided)
+  if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.length < 20) {
+    console.log('⚠️  Warning: GEMINI_API_KEY appears too short (should be 39 characters)');
+    console.log('   Please verify your API key is correct.');
   }
 
-  console.log('✅ All systems ready! Security enabled. Start recording meetings...\n');
+  console.log('✅ Server ready! Configure API keys in Settings to enable all features.\n');
 });
 
 // Graceful shutdown
