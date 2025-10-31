@@ -114,6 +114,18 @@ function startServer() {
     process.env.SUPABASE_ANON_KEY = settings.supabaseAnonKey || '';
     process.env.PORT = serverPort;
 
+    // Set database configuration
+    const dbConfig = settings.database || { type: 'sqlite' };
+    process.env.DB_TYPE = dbConfig.type || 'sqlite';
+    process.env.DB_HOST = dbConfig.host || '';
+    process.env.DB_NAME = dbConfig.database || '';
+    process.env.DB_USER = dbConfig.user || '';
+    process.env.DB_PASSWORD = dbConfig.password || '';
+    process.env.DB_PATH = dbConfig.path || '';
+    process.env.DB_PORT = dbConfig.port ? dbConfig.port.toString() : '';
+
+    log.info(`Database configured: ${dbConfig.type}`);
+
     // Start server
     serverProcess = fork(path.join(__dirname, 'server.js'), [], {
       env: process.env,
@@ -144,13 +156,13 @@ app.whenReady().then(() => {
   // Check if settings exist
   const settings = store.get('settings', {});
 
-  if (!settings.geminiApiKey || !settings.supabaseUrl) {
+  if (!settings.geminiApiKey) {
     // Show settings dialog first
     dialog.showMessageBox({
       type: 'info',
       title: 'Welcome to Multilingual PA',
       message: 'First Time Setup',
-      detail: 'Please configure your API keys in Settings (File > Settings) before using the application.'
+      detail: 'Please configure your Gemini API key in Settings (File > Settings) before using the application.\n\nDatabase will use SQLite by default (zero setup required).'
     });
   }
 

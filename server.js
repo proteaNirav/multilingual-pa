@@ -7,6 +7,7 @@ const express = require('express');
 const cors = require('cors');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { createClient } = require('@supabase/supabase-js');
+const { DatabaseFactory } = require('./database-adapter');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
 const validator = require('validator');
@@ -72,33 +73,114 @@ const model = genAI.getGenerativeModel({
   }
 });
 
-// Initialize Supabase (lazy - only when credentials are available)
+// Database Management
+let db = null;
+let dbInitialized = false;
+
+// Initialize database with configuration
+async function initializeDatabase(config = null) {
+  try {
+    // If no config provided, use defaults from environment or SQLite fallback
+    if (!config) {
+      const dbType = process.env.DB_TYPE || 'sqlite';
+
+      config = {
+        type: dbType,
+        host: process.env.DB_HOST,
+        port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : undefined,
+        database: process.env.DB_NAME,
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        path: process.env.DB_PATH // For SQLite
+      };
+    }
+
+    // Default to SQLite if no type specified (always works, no config needed)
+    if (!config.type) {
+      config.type = 'sqlite';
+      console.log('📦 No database configured - using SQLite (embedded)');
+    }
+
+    // Create database adapter
+    db = DatabaseFactory.create(config.type, config);
+
+    // Connect to database
+    await db.connect();
+
+    // Create tables if they don't exist
+    await db.createTables();
+
+    dbInitialized = true;
+    console.log(`✅ Database connected: ${config.type.toUpperCase()}`);
+
+    return { success: true, type: config.type };
+  } catch (error) {
+    console.error('❌ Database initialization failed:', error.message);
+
+    // Fallback to SQLite if configured database fails
+    if (config && config.type !== 'sqlite') {
+      console.log('🔄 Falling back to SQLite...');
+      try {
+        db = DatabaseFactory.create('sqlite', { path: null }); // Use default path
+        await db.connect();
+        await db.createTables();
+        dbInitialized = true;
+        console.log('✅ SQLite fallback successful');
+        return { success: true, type: 'sqlite', fallback: true };
+      } catch (fallbackError) {
+        console.error('❌ SQLite fallback also failed:', fallbackError.message);
+        dbInitialized = false;
+        return { success: false, error: fallbackError.message };
+      }
+    }
+
+    dbInitialized = false;
+    return { success: false, error: error.message };
+  }
+}
+
+// Get database instance
+function getDatabase() {
+  return db;
+}
+
+// Check if database is ready
+function isDatabaseReady() {
+  return dbInitialized && db && db.connected;
+}
+
+// Middleware to require database connection
+function requireDatabase(req, res, next) {
+  if (!isDatabaseReady()) {
+    return res.status(503).json({
+      success: false,
+      error: 'Database not available. Please configure database in Settings.',
+      needsSetup: true
+    });
+  }
+  next();
+}
+
+// Keep Supabase for optional telemetry (app improvement, not user data)
 let supabase = null;
 
 function getSupabaseClient() {
   if (!supabase && process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
-    supabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_ANON_KEY
-    );
+    try {
+      supabase = createClient(
+        process.env.SUPABASE_URL,
+        process.env.SUPABASE_ANON_KEY
+      );
+      console.log('📊 Supabase telemetry enabled (optional)');
+    } catch (error) {
+      console.log('⚠️  Supabase telemetry not available');
+    }
   }
   return supabase;
 }
 
 function isSupabaseConfigured() {
   return !!(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY);
-}
-
-// Middleware to check if Supabase is configured (for database endpoints)
-function requireSupabase(req, res, next) {
-  if (!isSupabaseConfigured()) {
-    return res.status(503).json({
-      success: false,
-      error: 'Database not configured. Please configure Supabase credentials in Settings.',
-      needsSetup: true
-    });
-  }
-  next();
 }
 
 // Language configuration
@@ -300,32 +382,28 @@ INSTRUCTIONS:
     // Store raw transcript for reference
     processedData.rawTranscript = transcript;
 
-    // Save to Supabase database
-    try {
-      const { data, error } = await getSupabaseClient()
-        .from('meetings')
-        .insert({
+    // Save to local database
+    if (isDatabaseReady()) {
+      try {
+        const savedMeeting = await db.insertMeeting({
           title: meetingTitle || 'Team Meeting',
           transcript: transcript,
           language: language,
           processed_data: processedData,
           created_at: new Date().toISOString()
-        })
-        .select();
+        });
 
-      if (error) {
-        console.error('Database save error:', error);
+        console.log('Meeting saved to database with ID:', savedMeeting.id);
+        processedData.savedToDatabase = true;
+        processedData.meetingId = savedMeeting.id;
+      } catch (dbError) {
+        console.error('Database save error:', dbError);
         processedData.savedToDatabase = false;
         // Don't expose database error details to client
-      } else {
-        console.log('Meeting saved to database with ID:', data[0]?.id);
-        processedData.savedToDatabase = true;
-        processedData.meetingId = data[0]?.id;
       }
-    } catch (dbError) {
-      console.error('Database connection error:', dbError);
+    } else {
+      console.log('⚠️  Database not configured - meeting not saved');
       processedData.savedToDatabase = false;
-      // Don't expose database error details to client
     }
 
     const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
@@ -356,38 +434,23 @@ INSTRUCTIONS:
 });
 
 // Get meeting history with search and filter
-app.get('/api/meetings', requireSupabase, async (req, res) => {
+app.get('/api/meetings', requireDatabase, async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 50;
     const search = req.query.search ? sanitizeInput(req.query.search) : '';
     const language = req.query.language ? sanitizeInput(req.query.language) : '';
 
-    let query = supabase
-      .from('meetings')
-      .select('id, title, language, created_at, processed_data')
-      .order('created_at', { ascending: false })
-      .limit(limit);
-
-    // Apply search filter (search in title)
-    if (search) {
-      query = query.ilike('title', `%${search}%`);
-    }
-
-    // Apply language filter
-    if (language && ['english', 'hindi', 'gujarati', 'marathi'].includes(language)) {
-      query = query.eq('language', language);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw error;
-    }
+    // Use database adapter to get meetings
+    const meetings = await db.getMeetings({
+      search,
+      language,
+      limit
+    });
 
     res.json({
       success: true,
-      meetings: data || [],
-      count: data?.length || 0
+      meetings: meetings || [],
+      count: meetings?.length || 0
     });
   } catch (error) {
     console.error('Fetch meetings error:', error);
@@ -400,55 +463,38 @@ app.get('/api/meetings', requireSupabase, async (req, res) => {
 });
 
 // Get single meeting by ID
-app.get('/api/meetings/:id', requireSupabase, async (req, res) => {
+app.get('/api/meetings/:id', requireDatabase, async (req, res) => {
   try {
     const { id } = req.params;
-    
-    const { data, error } = await getSupabaseClient()
-      .from('meetings')
-      .select('*')
-      .eq('id', id)
-      .single();
 
-    if (error) {
-      throw error;
-    }
+    const meeting = await db.getMeetingById(id);
 
-    res.json({ 
-      success: true, 
-      meeting: data
+    res.json({
+      success: true,
+      meeting
     });
   } catch (error) {
     console.error('Fetch meeting error:', error);
-    res.status(404).json({ 
-      success: false, 
+    res.status(404).json({
+      success: false,
       error: 'Meeting not found'
     });
   }
 });
 
 // Get financial summary from all meetings
-app.get('/api/financial-summary', requireSupabase, async (req, res) => {
+app.get('/api/financial-summary', requireDatabase, async (req, res) => {
   try {
-    const { data, error } = await getSupabaseClient()
-      .from('meetings')
-      .select('processed_data, created_at')
-      .not('processed_data', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(100);
-
-    if (error) {
-      throw error;
-    }
+    const meetings = await db.getFinancialSummary();
 
     // Aggregate financial data
     let totalMeetings = 0;
     let meetingsWithFinancials = 0;
     let recentHighlights = [];
 
-    if (data) {
-      totalMeetings = data.length;
-      data.forEach(meeting => {
+    if (meetings) {
+      totalMeetings = meetings.length;
+      meetings.forEach(meeting => {
         const financials = meeting.processed_data?.financialHighlights;
         if (financials && Object.values(financials).some(v => v && v !== "Not extracted" && v !== "Not extracted - check transcript")) {
           meetingsWithFinancials++;
@@ -460,8 +506,8 @@ app.get('/api/financial-summary', requireSupabase, async (req, res) => {
       });
     }
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: {
         totalMeetings,
         meetingsWithFinancials,
@@ -471,63 +517,170 @@ app.get('/api/financial-summary', requireSupabase, async (req, res) => {
     });
   } catch (error) {
     console.error('Financial summary error:', error);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: 'Failed to get financial summary'
     });
   }
 });
 
 // Delete meeting
-app.delete('/api/meetings/:id', requireSupabase, async (req, res) => {
+app.delete('/api/meetings/:id', requireDatabase, async (req, res) => {
   try {
     const { id } = req.params;
-    
-    const { error } = await getSupabaseClient()
-      .from('meetings')
-      .delete()
-      .eq('id', id);
 
-    if (error) {
-      throw error;
+    const result = await db.deleteMeeting(id);
+
+    if (result.deleted) {
+      res.json({
+        success: true,
+        message: 'Meeting deleted successfully'
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        error: 'Meeting not found'
+      });
     }
-
-    res.json({ 
-      success: true, 
-      message: 'Meeting deleted successfully'
-    });
   } catch (error) {
     console.error('Delete meeting error:', error);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       error: 'Failed to delete meeting'
     });
   }
 });
 
-// Get statistics
-app.get('/api/stats', async (req, res) => {
+// Test database connection
+app.post('/api/test-database-connection', async (req, res) => {
   try {
-    const { data, error } = await getSupabaseClient()
-      .from('meetings')
-      .select('language, created_at, processed_data');
+    const config = req.body;
 
-    if (error) throw error;
+    // Validate required fields
+    if (!config.type) {
+      return res.status(400).json({
+        success: false,
+        error: 'Database type is required'
+      });
+    }
+
+    console.log(`🔍 Testing ${config.type.toUpperCase()} connection...`);
+
+    // Create test database adapter
+    const testDb = DatabaseFactory.create(config.type, config);
+
+    // Try to connect
+    await testDb.connect();
+
+    // Test the connection
+    const result = await testDb.testConnection();
+
+    // Disconnect
+    await testDb.disconnect();
+
+    console.log(`✅ ${config.type.toUpperCase()} connection successful`);
+
+    res.json({
+      success: true,
+      message: result.message || `Successfully connected to ${config.type.toUpperCase()} database`,
+      type: config.type,
+      details: result.details || {}
+    });
+
+  } catch (error) {
+    console.error(`❌ Database connection test failed:`, error);
+    res.status(400).json({
+      success: false,
+      error: error.message || 'Failed to connect to database',
+      type: req.body.type
+    });
+  }
+});
+
+// Configure database
+app.post('/api/configure-database', async (req, res) => {
+  try {
+    const config = req.body;
+
+    // Test connection first
+    const testDb = DatabaseFactory.create(config.type, config);
+    await testDb.connect();
+    await testDb.testConnection();
+    await testDb.disconnect();
+
+    // If test passed, reinitialize the main database
+    const result = await initializeDatabase(config);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: `Database configured successfully: ${result.type.toUpperCase()}${result.fallback ? ' (fallback)' : ''}`,
+        type: result.type,
+        fallback: result.fallback || false
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: result.error || 'Failed to configure database'
+      });
+    }
+
+  } catch (error) {
+    console.error('Database configuration error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to configure database'
+    });
+  }
+});
+
+// Get current database status
+app.get('/api/database-status', async (req, res) => {
+  try {
+    const status = {
+      connected: isDatabaseReady(),
+      type: db ? db.constructor.name.replace('Adapter', '').toLowerCase() : 'none',
+      ready: dbInitialized
+    };
+
+    res.json({
+      success: true,
+      status
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get database status'
+    });
+  }
+});
+
+// Get statistics
+app.get('/api/stats', requireDatabase, async (req, res) => {
+  try {
+    // Get all meetings from database
+    const meetings = await db.getMeetings({ limit: 10000 });
 
     const stats = {
-      totalMeetings: data.length,
+      totalMeetings: meetings.length,
       byLanguage: {
-        english: data.filter(m => m.language === 'english').length,
-        gujarati: data.filter(m => m.language === 'gujarati').length,
-        hindi: data.filter(m => m.language === 'hindi').length,
-        marathi: data.filter(m => m.language === 'marathi').length
+        english: meetings.filter(m => m.language === 'english').length,
+        gujarati: meetings.filter(m => m.language === 'gujarati').length,
+        hindi: meetings.filter(m => m.language === 'hindi').length,
+        marathi: meetings.filter(m => m.language === 'marathi').length
       },
-      averageProcessingTime: data.length > 0 ? 
-        (data.reduce((sum, m) => {
-          const time = parseFloat(m.processed_data?.metadata?.processingTime || '0');
+      averageProcessingTime: meetings.length > 0 ?
+        (meetings.reduce((sum, m) => {
+          const processedData = typeof m.processed_data === 'string' ?
+            JSON.parse(m.processed_data) : m.processed_data;
+          const time = parseFloat(processedData?.metadata?.processingTime || '0');
           return sum + time;
-        }, 0) / data.length).toFixed(2) + 's' : '0s',
-      totalTasks: data.reduce((sum, m) => sum + (m.processed_data?.tasks?.length || 0), 0)
+        }, 0) / meetings.length).toFixed(2) + 's' : '0s',
+      totalTasks: meetings.reduce((sum, m) => {
+        const processedData = typeof m.processed_data === 'string' ?
+          JSON.parse(m.processed_data) : m.processed_data;
+        return sum + (processedData?.tasks?.length || 0);
+      }, 0)
     };
 
     res.json({ success: true, stats });
@@ -538,7 +691,7 @@ app.get('/api/stats', async (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`
 ╔════════════════════════════════════════════════╗
 ║  🤖 Multilingual AI Personal Assistant        ║
@@ -550,6 +703,16 @@ app.listen(PORT, () => {
 ║  🚀 Model: gemini-1.5-flash-8b            ║
 ╚════════════════════════════════════════════════╝
   `);
+
+  // Initialize database
+  console.log('🔌 Initializing database...');
+  const dbResult = await initializeDatabase();
+  if (dbResult.success) {
+    console.log(`✅ Database ready: ${dbResult.type.toUpperCase()}${dbResult.fallback ? ' (fallback)' : ''}`);
+  } else {
+    console.log('⚠️  Warning: Database initialization failed - running without database');
+    console.log('   Meeting data will not be saved. Configure database in Settings.');
+  }
   
   // Validate environment variables
   if (!process.env.GEMINI_API_KEY) {

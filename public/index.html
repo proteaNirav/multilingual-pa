@@ -1609,16 +1609,127 @@
                     <small>Required for AI processing. Get it from <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a></small>
                 </div>
 
+                <hr style="margin: 25px 0; border: none; border-top: 2px solid #e0e0e0;">
+
+                <h3 style="margin-bottom: 15px; color: #333;">🗄️ Local Database Configuration</h3>
+
                 <div class="settings-field">
-                    <label for="supabaseUrl">🗄️ Supabase URL *</label>
-                    <input type="text" id="supabaseUrl" placeholder="https://your-project.supabase.co">
-                    <small>Required for database storage</small>
+                    <label for="dbType">📊 Database Type *</label>
+                    <select id="dbType" onchange="updateDatabaseFields()">
+                        <option value="sqlite">SQLite (Recommended - Zero Setup)</option>
+                        <option value="sqlserver">Microsoft SQL Server</option>
+                        <option value="mysql">MySQL / MariaDB</option>
+                        <option value="postgresql">PostgreSQL</option>
+                    </select>
+                    <small>Choose where to store your meeting data locally</small>
+                </div>
+
+                <!-- SQLite-specific fields -->
+                <div id="sqliteFields" class="db-config-section">
+                    <div class="settings-field">
+                        <label for="dbPath">📁 Database File Path (Optional)</label>
+                        <input type="text" id="dbPath" placeholder="Leave empty for default location">
+                        <small>Default: C:\Users\YourName\AppData\Roaming\multilingual-pa\meetings.db</small>
+                    </div>
+                </div>
+
+                <!-- SQL Server-specific fields -->
+                <div id="sqlserverFields" class="db-config-section" style="display: none;">
+                    <div class="settings-field">
+                        <label for="dbHost">🖥️ Server Host</label>
+                        <input type="text" id="dbHost" placeholder="localhost" value="localhost">
+                        <small>SQL Server hostname or IP address</small>
+                    </div>
+                    <div class="settings-field">
+                        <label for="dbName">💾 Database Name</label>
+                        <input type="text" id="dbName" placeholder="MultilingualPA" value="MultilingualPA">
+                        <small>Database must exist - create it first if needed</small>
+                    </div>
+                    <div class="settings-field">
+                        <label for="dbUser">👤 Username</label>
+                        <input type="text" id="dbUser" placeholder="sa or Windows user">
+                        <small>Leave empty for Windows Authentication</small>
+                    </div>
+                    <div class="settings-field">
+                        <label for="dbPassword">🔒 Password</label>
+                        <input type="password" id="dbPassword" placeholder="Enter password">
+                        <small>Leave empty for Windows Authentication</small>
+                    </div>
+                </div>
+
+                <!-- MySQL-specific fields -->
+                <div id="mysqlFields" class="db-config-section" style="display: none;">
+                    <div class="settings-field">
+                        <label for="dbHostMySQL">🖥️ Server Host</label>
+                        <input type="text" id="dbHostMySQL" placeholder="localhost" value="localhost">
+                        <small>MySQL hostname or IP address</small>
+                    </div>
+                    <div class="settings-field">
+                        <label for="dbPortMySQL">🔌 Port</label>
+                        <input type="number" id="dbPortMySQL" placeholder="3306" value="3306">
+                        <small>Default MySQL port is 3306</small>
+                    </div>
+                    <div class="settings-field">
+                        <label for="dbNameMySQL">💾 Database Name</label>
+                        <input type="text" id="dbNameMySQL" placeholder="multilingual_pa" value="multilingual_pa">
+                    </div>
+                    <div class="settings-field">
+                        <label for="dbUserMySQL">👤 Username</label>
+                        <input type="text" id="dbUserMySQL" placeholder="root">
+                    </div>
+                    <div class="settings-field">
+                        <label for="dbPasswordMySQL">🔒 Password</label>
+                        <input type="password" id="dbPasswordMySQL" placeholder="Enter password">
+                    </div>
+                </div>
+
+                <!-- PostgreSQL-specific fields -->
+                <div id="postgresqlFields" class="db-config-section" style="display: none;">
+                    <div class="settings-field">
+                        <label for="dbHostPostgreSQL">🖥️ Server Host</label>
+                        <input type="text" id="dbHostPostgreSQL" placeholder="localhost" value="localhost">
+                        <small>PostgreSQL hostname or IP address</small>
+                    </div>
+                    <div class="settings-field">
+                        <label for="dbPortPostgreSQL">🔌 Port</label>
+                        <input type="number" id="dbPortPostgreSQL" placeholder="5432" value="5432">
+                        <small>Default PostgreSQL port is 5432</small>
+                    </div>
+                    <div class="settings-field">
+                        <label for="dbNamePostgreSQL">💾 Database Name</label>
+                        <input type="text" id="dbNamePostgreSQL" placeholder="multilingual_pa" value="multilingual_pa">
+                    </div>
+                    <div class="settings-field">
+                        <label for="dbUserPostgreSQL">👤 Username</label>
+                        <input type="text" id="dbUserPostgreSQL" placeholder="postgres" value="postgres">
+                    </div>
+                    <div class="settings-field">
+                        <label for="dbPasswordPostgreSQL">🔒 Password</label>
+                        <input type="password" id="dbPasswordPostgreSQL" placeholder="Enter password">
+                    </div>
                 </div>
 
                 <div class="settings-field">
-                    <label for="supabaseAnonKey">🔑 Supabase Anon Key *</label>
+                    <button class="settings-btn settings-btn-secondary" onclick="testDatabaseConnection()" style="width: 100%;">
+                        🔍 Test Connection
+                    </button>
+                    <small id="dbTestResult" style="display: block; margin-top: 8px; font-weight: bold;"></small>
+                </div>
+
+                <hr style="margin: 25px 0; border: none; border-top: 2px solid #e0e0e0;">
+
+                <h3 style="margin-bottom: 15px; color: #333;">📊 Telemetry (Optional - For App Improvement)</h3>
+
+                <div class="settings-field">
+                    <label for="supabaseUrl">🗄️ Supabase URL (Optional)</label>
+                    <input type="text" id="supabaseUrl" placeholder="https://your-project.supabase.co">
+                    <small>Only for sharing anonymous usage data to improve the app</small>
+                </div>
+
+                <div class="settings-field">
+                    <label for="supabaseAnonKey">🔑 Supabase Anon Key (Optional)</label>
                     <input type="password" id="supabaseAnonKey" placeholder="Enter your Supabase anon key">
-                    <small>Required for database access</small>
+                    <small>Leave empty to keep all data private on your local machine</small>
                 </div>
 
                 <hr style="margin: 25px 0; border: none; border-top: 2px solid #e0e0e0;">
@@ -1851,6 +1962,32 @@
                         document.getElementById('supabaseAnonKey').value = settings.supabaseAnonKey || '';
                         document.getElementById('githubToken').value = settings.githubToken || '';
                         document.getElementById('githubRepo').value = settings.githubRepo || 'proteaNirav/multilingual-pa';
+
+                        // Load database configuration
+                        const dbConfig = settings.database || { type: 'sqlite' };
+                        document.getElementById('dbType').value = dbConfig.type || 'sqlite';
+                        updateDatabaseFields(); // Show/hide relevant fields
+
+                        if (dbConfig.type === 'sqlite') {
+                            document.getElementById('dbPath').value = dbConfig.path || '';
+                        } else if (dbConfig.type === 'sqlserver') {
+                            document.getElementById('dbHost').value = dbConfig.host || 'localhost';
+                            document.getElementById('dbName').value = dbConfig.database || 'MultilingualPA';
+                            document.getElementById('dbUser').value = dbConfig.user || '';
+                            document.getElementById('dbPassword').value = dbConfig.password || '';
+                        } else if (dbConfig.type === 'mysql') {
+                            document.getElementById('dbHostMySQL').value = dbConfig.host || 'localhost';
+                            document.getElementById('dbPortMySQL').value = dbConfig.port || 3306;
+                            document.getElementById('dbNameMySQL').value = dbConfig.database || 'multilingual_pa';
+                            document.getElementById('dbUserMySQL').value = dbConfig.user || '';
+                            document.getElementById('dbPasswordMySQL').value = dbConfig.password || '';
+                        } else if (dbConfig.type === 'postgresql') {
+                            document.getElementById('dbHostPostgreSQL').value = dbConfig.host || 'localhost';
+                            document.getElementById('dbPortPostgreSQL').value = dbConfig.port || 5432;
+                            document.getElementById('dbNamePostgreSQL').value = dbConfig.database || 'multilingual_pa';
+                            document.getElementById('dbUserPostgreSQL').value = dbConfig.user || 'postgres';
+                            document.getElementById('dbPasswordPostgreSQL').value = dbConfig.password || '';
+                        }
                     } catch (error) {
                         console.error('Failed to load settings:', error);
                         alert('Warning: Could not load existing settings. You can still enter new settings.');
@@ -1868,18 +2005,122 @@
             document.getElementById('settingsModal').classList.remove('active');
         }
 
+        function updateDatabaseFields() {
+            const dbType = document.getElementById('dbType').value;
+
+            // Hide all database-specific fields
+            document.getElementById('sqliteFields').style.display = 'none';
+            document.getElementById('sqlserverFields').style.display = 'none';
+            document.getElementById('mysqlFields').style.display = 'none';
+            document.getElementById('postgresqlFields').style.display = 'none';
+
+            // Show selected database fields
+            if (dbType === 'sqlite') {
+                document.getElementById('sqliteFields').style.display = 'block';
+            } else if (dbType === 'sqlserver') {
+                document.getElementById('sqlserverFields').style.display = 'block';
+            } else if (dbType === 'mysql') {
+                document.getElementById('mysqlFields').style.display = 'block';
+            } else if (dbType === 'postgresql') {
+                document.getElementById('postgresqlFields').style.display = 'block';
+            }
+
+            // Clear test result
+            document.getElementById('dbTestResult').textContent = '';
+        }
+
+        async function testDatabaseConnection() {
+            const dbType = document.getElementById('dbType').value;
+            const resultEl = document.getElementById('dbTestResult');
+
+            // Build database config
+            let dbConfig = { type: dbType };
+
+            if (dbType === 'sqlite') {
+                dbConfig.path = document.getElementById('dbPath').value.trim();
+            } else if (dbType === 'sqlserver') {
+                dbConfig.host = document.getElementById('dbHost').value.trim();
+                dbConfig.database = document.getElementById('dbName').value.trim();
+                dbConfig.user = document.getElementById('dbUser').value.trim();
+                dbConfig.password = document.getElementById('dbPassword').value.trim();
+            } else if (dbType === 'mysql') {
+                dbConfig.host = document.getElementById('dbHostMySQL').value.trim();
+                dbConfig.port = parseInt(document.getElementById('dbPortMySQL').value);
+                dbConfig.database = document.getElementById('dbNameMySQL').value.trim();
+                dbConfig.user = document.getElementById('dbUserMySQL').value.trim();
+                dbConfig.password = document.getElementById('dbPasswordMySQL').value.trim();
+            } else if (dbType === 'postgresql') {
+                dbConfig.host = document.getElementById('dbHostPostgreSQL').value.trim();
+                dbConfig.port = parseInt(document.getElementById('dbPortPostgreSQL').value);
+                dbConfig.database = document.getElementById('dbNamePostgreSQL').value.trim();
+                dbConfig.user = document.getElementById('dbUserPostgreSQL').value.trim();
+                dbConfig.password = document.getElementById('dbPasswordPostgreSQL').value.trim();
+            }
+
+            resultEl.textContent = '🔍 Testing connection...';
+            resultEl.style.color = '#2196F3';
+
+            try {
+                const response = await fetch('/api/test-database-connection', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dbConfig)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    resultEl.textContent = '✅ Connection successful!';
+                    resultEl.style.color = '#4CAF50';
+                } else {
+                    resultEl.textContent = `❌ Connection failed: ${result.error}`;
+                    resultEl.style.color = '#f44336';
+                }
+            } catch (error) {
+                resultEl.textContent = `❌ Test failed: ${error.message}`;
+                resultEl.style.color = '#f44336';
+            }
+        }
+
         async function saveSettings() {
+            const dbType = document.getElementById('dbType').value;
+
+            // Build database config
+            let database = { type: dbType };
+
+            if (dbType === 'sqlite') {
+                database.path = document.getElementById('dbPath').value.trim();
+            } else if (dbType === 'sqlserver') {
+                database.host = document.getElementById('dbHost').value.trim();
+                database.database = document.getElementById('dbName').value.trim();
+                database.user = document.getElementById('dbUser').value.trim();
+                database.password = document.getElementById('dbPassword').value.trim();
+            } else if (dbType === 'mysql') {
+                database.host = document.getElementById('dbHostMySQL').value.trim();
+                database.port = parseInt(document.getElementById('dbPortMySQL').value);
+                database.database = document.getElementById('dbNameMySQL').value.trim();
+                database.user = document.getElementById('dbUserMySQL').value.trim();
+                database.password = document.getElementById('dbPasswordMySQL').value.trim();
+            } else if (dbType === 'postgresql') {
+                database.host = document.getElementById('dbHostPostgreSQL').value.trim();
+                database.port = parseInt(document.getElementById('dbPortPostgreSQL').value);
+                database.database = document.getElementById('dbNamePostgreSQL').value.trim();
+                database.user = document.getElementById('dbUserPostgreSQL').value.trim();
+                database.password = document.getElementById('dbPasswordPostgreSQL').value.trim();
+            }
+
             const settings = {
                 geminiApiKey: document.getElementById('geminiApiKey').value.trim(),
                 supabaseUrl: document.getElementById('supabaseUrl').value.trim(),
                 supabaseAnonKey: document.getElementById('supabaseAnonKey').value.trim(),
                 githubToken: document.getElementById('githubToken').value.trim(),
-                githubRepo: document.getElementById('githubRepo').value.trim() || 'proteaNirav/multilingual-pa'
+                githubRepo: document.getElementById('githubRepo').value.trim() || 'proteaNirav/multilingual-pa',
+                database: database
             };
 
-            // Validate
-            if (!settings.geminiApiKey || !settings.supabaseUrl || !settings.supabaseAnonKey) {
-                alert('Please fill in all required fields');
+            // Validate - only Gemini API key is required now
+            if (!settings.geminiApiKey) {
+                alert('Gemini API Key is required for AI processing');
                 return;
             }
 
